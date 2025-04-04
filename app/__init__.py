@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 import logging
 import os
 from app.authentication.KeyManager import KeyManager
-from constants import ACCESS_TOKEN_PUBLICKEY_BASEPATH
+from constants import ACCESS_TOKEN_PUBLICKEY_BASEPATH, IS_VALIDATION_ENABLED
 
 db = SQLAlchemy()
 
@@ -22,13 +22,14 @@ def create_app():
         raise
     app = Flask(__name__)
 
-    # Initialize KeyManager
-    base_path = ACCESS_TOKEN_PUBLICKEY_BASEPATH
-    if not base_path:
-        logger.error("ACCESS_TOKEN_PUBLICKEY_BASEPATH is not set.")
-        raise ValueError("ACCESS_TOKEN_PUBLICKEY_BASEPATH is not set.")
-    KeyManager.init(base_path)
-    logger.info("KeyManager initialized successfully.")
+    if IS_VALIDATION_ENABLED.lower() == 'true' : 
+        # Initialize KeyManager
+        base_path = ACCESS_TOKEN_PUBLICKEY_BASEPATH
+        if not base_path:
+            logger.error("ACCESS_TOKEN_PUBLICKEY_BASEPATH is not set.")
+            raise ValueError("ACCESS_TOKEN_PUBLICKEY_BASEPATH is not set.")
+        KeyManager.init(base_path)
+        logger.info("KeyManager initialized successfully.")
 
     try:
         from app.controllers.report_controller import report_controller

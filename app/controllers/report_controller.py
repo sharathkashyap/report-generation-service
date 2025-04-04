@@ -15,12 +15,12 @@ report_controller = Blueprint('report_controller', __name__)
 @report_controller.route('/report/org/<org_id>', methods=['POST'])
 def get_report(org_id):
     try:
-        # Extract and validate user token
-        user_token = request.headers.get(X_AUTHENTICATED_USER_TOKEN)
-        if not user_token:
-            logger.error("Missing 'x-authenticated-user-token' in headers.")
-            return jsonify({'error': 'Authentication token is required.'}), 401
         if IS_VALIDATION_ENABLED.lower() == 'true' :
+            # Extract and validate user token
+            user_token = request.headers.get(X_AUTHENTICATED_USER_TOKEN)
+            if not user_token:
+                logger.error("Missing 'x-authenticated-user-token' in headers.")
+                return jsonify({'error': 'Authentication token is required.'}), 401
             user_org_id = AccessTokenValidator.verify_user_token_get_org(user_token, True)
             if not user_org_id:
                 logger.error("Invalid or expired authentication token.")
