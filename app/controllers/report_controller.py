@@ -3,6 +3,8 @@ from app.services.report_service import ReportService
 from datetime import datetime
 import logging
 import io
+from app.authentication.AccessTokenValidator import AccessTokenValidator
+from constants import X_AUTHENTICATED_USER_TOKEN, IS_VALIDATION_ENABLED
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -13,6 +15,22 @@ report_controller = Blueprint('report_controller', __name__)
 @report_controller.route('/report/org/<org_id>', methods=['POST'])
 def get_report(org_id):
     try:
+        # Extract and validate user token
+        user_token = request.headers.get(X_AUTHENTICATED_USER_TOKEN)
+        if not user_token:
+            logger.error("Missing 'x-authenticated-user-token' in headers.")
+            return jsonify({'error': 'Authentication token is required.'}), 401
+        if IS_VALIDATION_ENABLED.lower() == 'true' :
+            user_org_id = AccessTokenValidator.verify_user_token_get_org(user_token, True)
+            if not user_org_id:
+                logger.error("Invalid or expired authentication token.")
+                return jsonify({'error': 'Invalid or expired authentication token.'}), 401
+
+            logger.info(f"Authenticated user with user_org_id={user_org_id}")
+            if user_org_id != org_id:
+                logger.error(f"User does not have access to organization ID {org_id}.")
+                return jsonify({'error': 'Access denied for the specified organization ID {org_id}.'}), 403
+            
         # Parse date range from request JSON
         data = request.get_json()
         if not data or 'start_date' not in data or 'end_date' not in data:
