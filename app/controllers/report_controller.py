@@ -2,8 +2,7 @@ from flask import Blueprint, request, jsonify, Response
 from app.services.report_service import ReportService
 from datetime import datetime
 import logging
-from cryptography.fernet import Fernet  # Ensure this import is present
-import io  # Ensure this import is present
+import io
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +35,7 @@ def get_report(org_id):
             return jsonify({'error': 'No data found for the given organization ID.'}), 404
 
         # Convert CSV data to a BytesIO stream
-        if isinstance(csv_data, str):  # Ensure csv_data is encoded as bytes
+        if isinstance(csv_data, str):
             csv_data = csv_data.encode('utf-8')
 
         csv_stream = io.BytesIO()
@@ -46,8 +45,8 @@ def get_report(org_id):
         # Return data as a downloadable file
         logger.info(f"Report generated successfully for org_id={org_id}")
         return Response(
-            csv_stream.getvalue(),  # Retrieve the content of the stream
-            mimetype="text/csv",  # Use 'text/csv' for CSV files
+            csv_stream.getvalue(),
+            mimetype="text/csv",
             headers={
                 "Content-Disposition": f'attachment; filename="report_{org_id}.csv"'
             }

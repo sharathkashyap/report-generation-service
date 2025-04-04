@@ -47,12 +47,30 @@ class DataFetcher:
             required_columns = ['user_id', 'mdo_id', 'full_name', 'email']
             df = df[required_columns]
 
-            # Export DataFrame to a CSV byte stream
+            # Fetch data from user_enrolments table based on user_id
+            user_ids = df['user_id'].tolist()
+            query_user_enrolments = """
+                SELECT * 
+                FROM user_enrolments 
+                WHERE user_id IN %s;
+            """
+            cursor.execute(query_user_enrolments, (tuple(user_ids),))
+            enrolment_rows = cursor.fetchall()
+            enrolment_column_names = [desc[0] for desc in cursor.description]
+
+            # Load user_enrolments data into a pandas DataFrame
+            enrolments_df = pd.DataFrame(enrolment_rows, columns=enrolment_column_names)
+
+            # Filter DataFrame to include only the required columns
+            enrolments_required_columns = ['user_id', 'batch_id', 'content_id', 'content_progress_percentage', 'enrolled_on']  # Replace with actual column names
+            enrolments_df = enrolments_df[enrolments_required_columns]
+
+            # Export enrolments DataFrame to a CSV byte stream
             csv_stream = BytesIO()
-            df.to_csv(csv_stream, index=False)
+            enrolments_df.to_csv(csv_stream, index=False)
             csv_stream.seek(0)  # Reset stream position to the beginning
 
-            print(f"Data fetched and converted to CSV stream successfully for orgId {org_id}. Total records: {len(df)}")
+            print(f"Data fetched and converted to CSV stream successfully for user enrolments. Total records: {len(enrolments_df)}")
             return csv_stream
         except Exception as e:
             print(f"Error: {e}")
