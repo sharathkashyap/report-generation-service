@@ -76,10 +76,33 @@ class DataFetcher:
             print(f"Error: {e}")
             return None
 
+    def fetch_data_as_dataframe(self, table_name, filters=None):
+        try:
+            cursor = self.connection.cursor()
+
+            query = f"SELECT * FROM {table_name}"
+            values = []
+
+            if filters:
+                conditions = [f"{col} = %s" for col in filters.keys()]
+                query += " WHERE " + " AND ".join(conditions)
+                values = list(filters.values())
+
+            cursor.execute(query, values)
+            rows = cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+
+            df = pd.DataFrame(rows, columns=columns)
+            print(f"[{table_name}] - Records fetched: {len(df)}")
+            return df
+        except Exception as e:
+            print(f"Error fetching data from {table_name}: {e}")
+            return pd.DataFrame()
+
     def close(self):
         # Use the standalone close_connection function to close the shared connection
         close_connection(self.connection)
 
-def close_connection(connection):
-    if connection:
-        connection.close()
+    def close_connection(connection):
+        if connection:
+            connection.close()

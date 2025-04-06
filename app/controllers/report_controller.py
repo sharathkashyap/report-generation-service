@@ -46,7 +46,9 @@ def get_report(org_id):
 
         # Generate and process report
         logger.info(f"Generating report for org_id={org_id} with date range {start_date} to {end_date}")
-        csv_data = ReportService.generate_csv(org_id)
+        #csv_data = ReportService.generate_csv(org_id)
+        required_cols = ["user_id", "full_name", "content_id", "total_learning_hours"]
+        csv_data = ReportService.get_total_learning_hours_csv_stream(org_id, required_columns=required_cols)
 
         if not csv_data:
             logger.error(f"No data found for org_id={org_id}")
