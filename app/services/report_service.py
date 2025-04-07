@@ -46,7 +46,7 @@ class ReportService:
             raise
 
     @staticmethod
-    def get_total_learning_hours_csv_stream(mdo_id, required_columns=None):
+    def get_total_learning_hours_csv_stream(start_date,end_date,mdo_id, required_columns=None):
         """
         Generate a CSV stream with total learning hours for each user/content based on completed courses.
 
@@ -57,6 +57,8 @@ class ReportService:
         try:
             fetcher = DataFetcher()
 
+            # Filter enrollments by user_id and date range
+
             user_df = fetcher.fetch_data_as_dataframe(USER_DETAILS_TABLE, {"mdo_id": mdo_id})
             #enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE)
             # Get only the user_ids to use in filtering other tables
@@ -64,8 +66,14 @@ class ReportService:
 
             user_count = len(user_ids)
             print(f"Unique user count: {user_count}")
+
+            enrollment_filters = {
+                "user_id__in": user_ids,
+                "first_completed_on__gte": start_date,  # Replace with your actual column name
+                "first_completed_on__lte": end_date
+            }
             # Fetch enrollment data, filtered by user_id
-            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE, {"user_id__in": user_ids})
+            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE, enrollment_filters)
    
             content_df = fetcher.fetch_data_as_dataframe(CONTENT_TABLE)
 
