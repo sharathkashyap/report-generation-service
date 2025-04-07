@@ -2,6 +2,9 @@ import os
 
 DEFAULT_TABLE_NAME = os.environ.get('DEFAULT_TABLE_NAME', 'wf_status')
 USER_DETAILS_TABLE = os.environ.get('USER_DETAILS_TABLE', 'user_detail')
+CONTENT_TABLE = os.environ.get('CONTENT_TABLE', 'content')
+USER_ENROLMENTS_TABLE = os.environ.get('USER_ENROLMENTS_TABLE', 'user_enrolments')
+REQUIRED_COLUMNS_FOR_ENROLLMENTS = ["user_id", "full_name", "content_id", "total_learning_hours"]
 SUNBIRD_SSO_URL = os.environ.get('SUNBIRD_SSO_URL', 'https://sso.example.com')
 SUNBIRD_SSO_REALM = os.environ.get('SUNBIRD_SSO_REALM', 'https://sso.example.com')
 ACCESS_TOKEN_PUBLICKEY_BASEPATH = os.environ.get('accesstoken_publickey_basepath')
