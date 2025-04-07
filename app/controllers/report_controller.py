@@ -53,7 +53,7 @@ def get_report(org_id):
         #     return jsonify({'error': 'Date range cannot exceed 1 year'}), 400
 
         required_cols = ["user_id", "full_name", "content_id", "total_learning_hours"]
-        csv_data = ReportService.get_total_learning_hours_csv_stream(start_date, end_date, org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENT )
+        csv_data = ReportService.get_total_learning_hours_csv_stream(start_date, end_date, org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENTS )
 
         if not csv_data:
             logger.warning(f"No data found for org_id={org_id} within given date range.")
