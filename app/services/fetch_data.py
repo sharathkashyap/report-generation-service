@@ -84,9 +84,18 @@ class DataFetcher:
             values = []
 
             if filters:
-                conditions = [f"{col} = %s" for col in filters.keys()]
+                conditions = []
+                for key, val in filters.items():
+                    if key.endswith("__in"):
+                        col = key.replace("__in", "")
+                        placeholders = ','.join(['%s'] * len(val))
+                        conditions.append(f"{col} IN ({placeholders})")
+                        values.extend(val)
+                    else:
+                        conditions.append(f"{key} = %s")
+                        values.append(val)
+
                 query += " WHERE " + " AND ".join(conditions)
-                values = list(filters.values())
 
             cursor.execute(query, values)
             rows = cursor.fetchall()

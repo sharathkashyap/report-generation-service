@@ -58,7 +58,15 @@ class ReportService:
             fetcher = DataFetcher()
 
             user_df = fetcher.fetch_data_as_dataframe(USER_DETAILS_TABLE, {"mdo_id": mdo_id})
-            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE)
+            #enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE)
+            # Get only the user_ids to use in filtering other tables
+            user_ids = user_df["user_id"].unique().tolist()
+
+            user_count = len(user_ids)
+            print(f"Unique user count: {user_count}")
+            # Fetch enrollment data, filtered by user_id
+            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE, {"user_id__in": user_ids})
+   
             content_df = fetcher.fetch_data_as_dataframe(CONTENT_TABLE)
 
             if user_df.empty or enrollment_df.empty or content_df.empty:
@@ -66,17 +74,18 @@ class ReportService:
                 return None
 
             # Filter only completed courses
-            enrollment_df = enrollment_df[enrollment_df["content_progress_percentage"] == 100]
+            #enrollment_df = enrollment_df[enrollment_df["content_progress_percentage"] == 100]
+
 
             # Merge all three DataFrames
-            merged_df = user_df.merge(enrollment_df, on="user_id", how="inner") \
-                               .merge(content_df, on=["content_id", "batch_id"], how="inner")
+            merged_df = user_df.merge(enrollment_df, on="user_id", how="inner").merge(content_df, on=["content_id"], how="inner")
+        
 
             # Convert content_duration to numeric to avoid issues during aggregation
-            merged_df["content_duration"] = pd.to_numeric(merged_df["content_duration"], errors="coerce").fillna(0)
+            #merged_df["content_duration"] = pd.to_numeric(merged_df["content_duration"], errors="coerce").fillna(0)
 
             # Add total_learning_hours per user (can modify to be per user+content if needed)
-            merged_df["total_learning_hours"] = merged_df.groupby("user_id")["content_duration"].transform("sum")
+            #merged_df["total_learning_hours"] = merged_df.groupby("user_id")["content_duration"].transform("sum")
 
             # Keep all columns by default
             final_df = merged_df
