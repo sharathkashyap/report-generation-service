@@ -1,7 +1,6 @@
 import base64
 import json
 import logging
-import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import load_der_public_key
