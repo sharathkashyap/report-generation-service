@@ -76,11 +76,11 @@ class DataFetcher:
             print(f"Error: {e}")
             return None
 
-    def fetch_data_as_dataframe(self, table_name, filters=None):
+    def fetch_data_as_dataframe(self, table_name, filters=None,columns=None):
         try:
             cursor = self.connection.cursor()
-
-            query = f"SELECT * FROM {table_name}"
+            col_clause = ", ".join(columns) if columns else "*"
+            query = f"SELECT {col_clause} FROM {table_name}"
             values = []
 
             if filters:

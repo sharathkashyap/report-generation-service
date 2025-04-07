@@ -59,7 +59,7 @@ class ReportService:
 
             # Filter enrollments by user_id and date range
 
-            user_df = fetcher.fetch_data_as_dataframe(USER_DETAILS_TABLE, {"mdo_id": mdo_id})
+            user_df = fetcher.fetch_data_as_dataframe(USER_DETAILS_TABLE, {"mdo_id": mdo_id},columns=["user_id", "mdo_id", "full_name"])
             #enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE)
             # Get only the user_ids to use in filtering other tables
             user_ids = user_df["user_id"].unique().tolist()
@@ -68,13 +68,15 @@ class ReportService:
             print(f"Unique user count: {user_count}")
 
             enrollment_filters = {
-                "user_id__in": user_ids,
                 "first_completed_on__gte": start_date,  # Replace with your actual column name
                 "first_completed_on__lte": end_date
             }
             # Fetch enrollment data, filtered by user_id
-            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE, enrollment_filters)
-   
+            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE, enrollment_filters,columns=["user_id", "certificate_generated", "content_id","enrolled_on","first_completed_on","last_completed_on"])
+            
+            #Filter by user_id
+            enrollment_df = enrollment_df[enrollment_df["user_id"].isin(user_ids)]
+
             content_df = fetcher.fetch_data_as_dataframe(CONTENT_TABLE)
 
             if user_df.empty or enrollment_df.empty or content_df.empty:
