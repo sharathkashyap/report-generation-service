@@ -5,6 +5,7 @@ import logging
 import io
 from app.authentication.AccessTokenValidator import AccessTokenValidator
 from constants import X_AUTHENTICATED_USER_TOKEN, IS_VALIDATION_ENABLED,REQUIRED_COLUMNS_FOR_ENROLLMENTS
+from datetime import datetime, time
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +40,9 @@ def get_report(org_id):
         start_date = datetime.strptime(data['start_date'], '%Y-%m-%d')
         end_date = datetime.strptime(data['end_date'], '%Y-%m-%d')
 
+        start_date = datetime.combine(start_date.date(), time.min)        # 00:00:00
+        end_date = datetime.combine(end_date.date(), time.max)  
+
         # Validate date range
         if (end_date - start_date).days > 365:
             logger.warning(f"Date range exceeds 1 year: start_date={start_date}, end_date={end_date}")
@@ -48,7 +52,7 @@ def get_report(org_id):
         logger.info(f"Generating report for org_id={org_id} with date range {start_date} to {end_date}")
         #csv_data = ReportService.generate_csv(org_id)
         required_cols = ["user_id", "full_name", "content_id", "total_learning_hours"]
-        csv_data = ReportService.get_total_learning_hours_csv_stream(org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENTS)
+        csv_data = ReportService.get_total_learning_hours_csv_stream(start_date,end_date,org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENTS)
 
         if not csv_data:
             logger.error(f"No data found for org_id={org_id}")

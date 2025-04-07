@@ -85,15 +85,23 @@ class DataFetcher:
 
             if filters:
                 conditions = []
-                for key, val in filters.items():
-                    if key.endswith("__in"):
-                        col = key.replace("__in", "")
-                        placeholders = ','.join(['%s'] * len(val))
-                        conditions.append(f"{col} IN ({placeholders})")
-                        values.extend(val)
+                for key, value in filters.items():
+                    if "__" in key:
+                        col, op = key.split("__")
+                        if op == "in" and isinstance(value, list):
+                            placeholders = ','.join(['%s'] * len(value))
+                            conditions.append(f"{col} IN ({placeholders})")
+                            values.extend(value)
+                        elif op == "gte":
+                            conditions.append(f"CAST({col} AS timestamp) >= %s")
+                            values.append(value)
+                        elif op == "lte":
+                            conditions.append(f"CAST({col} AS timestamp) <= %s")
+                            values.append(value)
+                        # Add other operations if needed
                     else:
                         conditions.append(f"{key} = %s")
-                        values.append(val)
+                        values.append(value)
 
                 query += " WHERE " + " AND ".join(conditions)
 
@@ -107,6 +115,7 @@ class DataFetcher:
         except Exception as e:
             print(f"Error fetching data from {table_name}: {e}")
             return pd.DataFrame()
+
 
     def close(self):
         # Use the standalone close_connection function to close the shared connection
