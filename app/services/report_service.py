@@ -5,7 +5,7 @@ import logging
 from cryptography.fernet import Fernet
 from app.models.report_model import ReportData
 from app.services.fetch_data import DataFetcher 
-from constants import USER_DETAILS_TABLE
+from constants import USER_DETAILS_TABLE,CONTENT_TABLE, USER_ENROLMENTS_TABLE
 import pandas as pd
 from io import BytesIO
 
@@ -57,9 +57,9 @@ class ReportService:
         try:
             fetcher = DataFetcher()
 
-            user_df = fetcher.fetch_data_as_dataframe("user_detail", {"mdo_id": mdo_id})
-            enrollment_df = fetcher.fetch_data_as_dataframe("user_enrolments")
-            content_df = fetcher.fetch_data_as_dataframe("content")
+            user_df = fetcher.fetch_data_as_dataframe(USER_DETAILS_TABLE, {"mdo_id": mdo_id})
+            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE)
+            content_df = fetcher.fetch_data_as_dataframe(CONTENT_TABLE)
 
             if user_df.empty or enrollment_df.empty or content_df.empty:
                 print("One or more tables returned no data.")

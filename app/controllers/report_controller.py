@@ -4,7 +4,7 @@ from datetime import datetime
 import logging
 import io
 from app.authentication.AccessTokenValidator import AccessTokenValidator
-from constants import X_AUTHENTICATED_USER_TOKEN, IS_VALIDATION_ENABLED
+from constants import X_AUTHENTICATED_USER_TOKEN, IS_VALIDATION_ENABLED,REQUIRED_COLUMNS_FOR_ENROLLMENTS
 
 # Configure logger
 logging.basicConfig(level=logging.INFO)
@@ -48,7 +48,7 @@ def get_report(org_id):
         logger.info(f"Generating report for org_id={org_id} with date range {start_date} to {end_date}")
         #csv_data = ReportService.generate_csv(org_id)
         required_cols = ["user_id", "full_name", "content_id", "total_learning_hours"]
-        csv_data = ReportService.get_total_learning_hours_csv_stream(org_id, required_columns=required_cols)
+        csv_data = ReportService.get_total_learning_hours_csv_stream(org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENTS)
 
         if not csv_data:
             logger.error(f"No data found for org_id={org_id}")
