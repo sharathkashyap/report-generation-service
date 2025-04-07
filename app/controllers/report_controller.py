@@ -44,9 +44,9 @@ def get_report(org_id):
         end_date = datetime.combine(end_date.date(), time.max)  
 
         # Validate date range
-        if (end_date - start_date).days > 365:
-            logger.warning(f"Date range exceeds 1 year: start_date={start_date}, end_date={end_date}")
-            return jsonify({'error': 'Date range cannot exceed 1 year'}), 400
+        # if (end_date - start_date).days > 365:
+        #     logger.warning(f"Date range exceeds 1 year: start_date={start_date}, end_date={end_date}")
+        #     return jsonify({'error': 'Date range cannot exceed 1 year'}), 400
 
         # Generate and process report
         logger.info(f"Generating report for org_id={org_id} with date range {start_date} to {end_date}")
