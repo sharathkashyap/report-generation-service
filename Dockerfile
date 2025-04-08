@@ -12,4 +12,4 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 EXPOSE 5000
 
 # Run the app using Gunicorn with 4 workers
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "app:create_app()"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "--timeout", "900", "app:create_app()"]

@@ -25,4 +25,4 @@ This microservice generates CSV reports for an organization from a PostgreSQL da
    curl -O http://localhost:5000/report/org/12345
    ```
 4. To run 
-   gunicorn -w 4 -b 0.0.0.0:5000 "app:create_app()"
+   gunicorn -w 4 -b 0.0.0.0:5000 "app:create_app()" --timeout 900
