@@ -1,118 +1,119 @@
-import os
-import csv
-import io 
-import logging 
-from cryptography.fernet import Fernet
-from app.models.report_model import ReportData
-from app.services.fetch_data import DataFetcher 
-from constants import USER_DETAILS_TABLE,CONTENT_TABLE, USER_ENROLMENTS_TABLE
-import pandas as pd
+import logging
 from io import BytesIO
+from cryptography.fernet import Fernet
+import pandas as pd
+from app.models.report_model import ReportData
+from app.services.fetch_data import DataFetcher
+from constants import USER_DETAILS_TABLE, CONTENT_TABLE, USER_ENROLMENTS_TABLE
 
 class ReportService:
     logger = logging.getLogger(__name__)
+
     @staticmethod
     def generate_csv(org_id):
         try:
-            # Fetch data as a CSV stream
             csv_stream = DataFetcher.fetch_data_as_csv_stream(DataFetcher(), USER_DETAILS_TABLE, org_id)
+            ReportService.logger.info("Data fetched successfully for CSV generation.")
 
-            ReportService.logger.info(f"Data fetched successfully when generating CSV.One or more tables returned no data.")
             if not csv_stream:
-                return b""  # Return empty bytes if no data
+                return b""
 
-            # Ensure the data is returned as a byte-stream
-            csv_data = csv_stream.read()
-            return csv_data 
+            return csv_stream.read()
+
         except Exception as e:
-            ReportService.logger.error(f"Error occurred while generating CSV: {e}")
-            return b""  # Return empty bytes in case of an error
+            ReportService.logger.error(f"Error generating CSV: {e}")
+            return b""
 
     @staticmethod
     def encrypt_csv(csv_data: bytes, encryption_key: bytes) -> bytes:
-        """
-        Encrypts the given CSV data using the provided encryption key.
-
-        :param csv_data: The CSV data to encrypt as bytes.
-        :param encryption_key: A 32-byte base64-encoded encryption key.
-        :return: Encrypted data as bytes.
-        """
         try:
             fernet = Fernet(encryption_key)
-            encrypted_data = fernet.encrypt(csv_data)
-            return encrypted_data
+            return fernet.encrypt(csv_data)
         except Exception as e:
-            logging.error(f"Error occurred while encrypting CSV: {e}")
+            logging.error(f"Error encrypting CSV: {e}")
             raise
 
     @staticmethod
-    def get_total_learning_hours_csv_stream(start_date,end_date,mdo_id, required_columns=None):
-        """
-        Generate a CSV stream with total learning hours for each user/content based on completed courses.
-
-        :param mdo_id: MDO ID to filter users
-        :param required_columns: List of columns to include in the final CSV (optional)
-        :return: Bytes stream of the CSV file
-        """
+    def get_total_learning_hours_csv_stream(start_date, end_date, mdo_id, required_columns=None):
         try:
             fetcher = DataFetcher()
 
-            # Filter enrollments by user_id and date range
+            # Fetch filtered user data
+            user_df = fetcher.fetch_data_as_dataframe(
+                USER_DETAILS_TABLE,
+                {"mdo_id": mdo_id},
+                columns=["user_id", "mdo_id", "full_name"]
+            )
 
-            user_df = fetcher.fetch_data_as_dataframe(USER_DETAILS_TABLE, {"mdo_id": mdo_id},columns=["user_id", "mdo_id", "full_name"])
-            #enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE)
-            # Get only the user_ids to use in filtering other tables
-            user_ids = user_df["user_id"].unique().tolist()
-
-            user_count = len(user_ids)
-            ReportService.logger.info(f"Unique user count: {user_count}")
-
-            enrollment_filters = {
-                "first_completed_on__gte": start_date,  # Replace with your actual column name
-                "first_completed_on__lte": end_date
-            }
-            # Fetch enrollment data, filtered by user_id
-            enrollment_df = fetcher.fetch_data_as_dataframe(USER_ENROLMENTS_TABLE, enrollment_filters,columns=["user_id", "certificate_generated", "content_id","enrolled_on","first_completed_on","last_completed_on"])
-            
-            #Filter by user_id
-            enrollment_df = enrollment_df[enrollment_df["user_id"].isin(user_ids)]
-
-            content_df = fetcher.fetch_data_as_dataframe(CONTENT_TABLE)
-
-            if user_df.empty or enrollment_df.empty or content_df.empty:
-                ReportService.logger.info(f"One or more tables returned no data.")
-
+            if user_df.empty:
+                ReportService.logger.info("No users found for given mdo_id.")
                 return None
 
-            # Filter only completed courses
-            #enrollment_df = enrollment_df[enrollment_df["content_progress_percentage"] == 100]
+            user_ids = user_df["user_id"].tolist()
+            ReportService.logger.info(f"Fetched {len(user_ids)} users.")
 
+            # Fetch filtered enrollment data
+            enrollment_filters = {
+                "first_completed_on__gte": start_date,
+                "first_completed_on__lte": end_date
+            }
 
-            # Merge all three DataFrames
-            merged_df = user_df.merge(enrollment_df, on="user_id", how="inner").merge(content_df, on=["content_id"], how="inner")
-        
+            enrollment_df = fetcher.fetch_data_as_dataframe(
+                USER_ENROLMENTS_TABLE,
+                enrollment_filters,
+                columns=["user_id", "certificate_generated", "content_id", "enrolled_on", "first_completed_on", "last_completed_on"]
+            )
 
-            # Convert content_duration to numeric to avoid issues during aggregation
-            #merged_df["content_duration"] = pd.to_numeric(merged_df["content_duration"], errors="coerce").fillna(0)
+            if enrollment_df.empty:
+                ReportService.logger.info("No enrollment data found for the given date range.")
+                return None
 
-            # Add total_learning_hours per user (can modify to be per user+content if needed)
-            #merged_df["total_learning_hours"] = merged_df.groupby("user_id")["content_duration"].transform("sum")
+            # Filter enrollment to only matching user_ids
+            enrollment_df = enrollment_df[enrollment_df["user_id"].isin(user_ids)]
+            if enrollment_df.empty:
+                ReportService.logger.info("No enrollments matched the filtered user IDs.")
+                return None
 
-            # Keep all columns by default
-            final_df = merged_df
+            # Fetch content data (consider filtering by content_id list if needed)
+            content_df = fetcher.fetch_data_as_dataframe(
+                CONTENT_TABLE,
+                columns=["content_id", "content_duration", "content_name"]
+            )
 
-            # If specific columns were passed, filter them
+            if content_df.empty:
+                ReportService.logger.info("No content data found.")
+                return None
+
+            # Merge all three datasets
+            merged_df = (
+                user_df
+                .merge(enrollment_df, on="user_id", how="inner")
+                .merge(content_df, on="content_id", how="inner")
+            )
+
+            if merged_df.empty:
+                ReportService.logger.info("Merged dataset is empty.")
+                return None
+
+            # Convert content_duration to numeric
+            #merged_df["content_duration"] = pd.to_numeric(merged_df.get("content_duration", 0), errors="coerce").fillna(0)
+
+            # Optional: calculate total learning hours per user
+            # merged_df["total_learning_hours"] = merged_df.groupby("user_id")["content_duration"].transform("sum")
+
+            # Filter columns if specified
             if required_columns:
-                missing_cols = [col for col in required_columns if col not in final_df.columns]
-                if missing_cols:
-                    ReportService.logger.info(f"Warning: These columns were not found and will be ignored: {missing_cols}")
-                final_df = final_df[[col for col in required_columns if col in final_df.columns]]
+                existing_columns = [col for col in required_columns if col in merged_df.columns]
+                missing_columns = list(set(required_columns) - set(existing_columns))
+                if missing_columns:
+                    ReportService.logger.info(f"Warning: Missing columns skipped: {missing_columns}")
+                merged_df = merged_df[existing_columns]
 
-            # Convert to CSV stream
+            # Convert to CSV
             csv_stream = BytesIO()
-            final_df.to_csv(csv_stream, index=False)
+            merged_df.to_csv(csv_stream, index=False)
             csv_stream.seek(0)
-            ReportService.logger.info(f"CSV stream generated successfully.")
+            ReportService.logger.info(f"CSV stream generated with {len(merged_df)} rows.")
             return csv_stream.getvalue()
 
         except Exception as e:
