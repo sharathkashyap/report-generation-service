@@ -1,8 +1,9 @@
 import pandas as pd
 from io import BytesIO
 from ..config.db_connection import DBConnection
-
+import logging 
 class DataFetcher:
+    logger = logging.getLogger(__name__)
     def __init__(self):# Class-level shared connection
         # Initialize a shared database connection
         self.connection = DBConnection.get_connection()
@@ -20,10 +21,10 @@ class DataFetcher:
             # Create a list of dictionaries (map) for the response
             data_map = [dict(zip(column_names, row)) for row in rows]
 
-            print(f"Data fetched successfully. Total records: {len(data_map)}")
+            DataFetcher.logger.info(f"Data fetched successfully. Total records: {len(data_map)}")
             return data_map
         except Exception as e:
-            print(f"Error: {e}")
+            DataFetcher.logger.error(f"Error: {e}")
             return []
 
     def fetch_data_as_csv_stream(self, table_name, org_id):
@@ -70,10 +71,10 @@ class DataFetcher:
             enrolments_df.to_csv(csv_stream, index=False)
             csv_stream.seek(0)  # Reset stream position to the beginning
 
-            print(f"Data fetched and converted to CSV stream successfully for user enrolments. Total records: {len(enrolments_df)}")
+            DataFetcher.logger.info(f"Data fetched and converted to CSV stream successfully for user enrolments. Total records: {len(enrolments_df)}")
             return csv_stream
         except Exception as e:
-            print(f"Error: {e}")
+            DataFetcher.logger.error(f"Error: {e}")
             return None
 
     def fetch_data_as_dataframe(self, table_name, filters=None,columns=None):
@@ -110,17 +111,17 @@ class DataFetcher:
             columns = [desc[0] for desc in cursor.description]
 
             df = pd.DataFrame(rows, columns=columns)
-            print(f"[{table_name}] - Records fetched: {len(df)}")
+            DataFetcher.logger.info(f"[{table_name}] - Records fetched: {len(df)}")
             return df
         except Exception as e:
-            print(f"Error fetching data from {table_name}: {e}")
+            DataFetcher.logger.error(f"Error fetching data from {table_name}: {e}")
             return pd.DataFrame()
-
-
-    def close(self):
-        # Use the standalone close_connection function to close the shared connection
-        close_connection(self.connection)
 
     def close_connection(connection):
         if connection:
             connection.close()
+
+    def close(self):
+        # Use the standalone close_connection function to close the shared connection
+        self.close_connection(self.connection)
+

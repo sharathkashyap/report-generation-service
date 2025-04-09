@@ -10,14 +10,14 @@ import pandas as pd
 from io import BytesIO
 
 class ReportService:
+    logger = logging.getLogger(__name__)
     @staticmethod
     def generate_csv(org_id):
         try:
             # Fetch data as a CSV stream
             csv_stream = DataFetcher.fetch_data_as_csv_stream(DataFetcher(), USER_DETAILS_TABLE, org_id)
 
-            print("Data fetched successfully when generating CSV.")
-
+            ReportService.logger.info(f"Data fetched successfully when generating CSV.One or more tables returned no data.")
             if not csv_stream:
                 return b""  # Return empty bytes if no data
 
@@ -25,7 +25,7 @@ class ReportService:
             csv_data = csv_stream.read()
             return csv_data 
         except Exception as e:
-            print(f"Error occurred while generating CSV: {e}")
+            ReportService.logger.error(f"Error occurred while generating CSV: {e}")
             return b""  # Return empty bytes in case of an error
 
     @staticmethod
@@ -65,7 +65,7 @@ class ReportService:
             user_ids = user_df["user_id"].unique().tolist()
 
             user_count = len(user_ids)
-            print(f"Unique user count: {user_count}")
+            ReportService.logger.info(f"Unique user count: {user_count}")
 
             enrollment_filters = {
                 "first_completed_on__gte": start_date,  # Replace with your actual column name
@@ -80,7 +80,8 @@ class ReportService:
             content_df = fetcher.fetch_data_as_dataframe(CONTENT_TABLE)
 
             if user_df.empty or enrollment_df.empty or content_df.empty:
-                print("One or more tables returned no data.")
+                ReportService.logger.info(f"One or more tables returned no data.")
+
                 return None
 
             # Filter only completed courses
@@ -104,17 +105,16 @@ class ReportService:
             if required_columns:
                 missing_cols = [col for col in required_columns if col not in final_df.columns]
                 if missing_cols:
-                    print(f"Warning: These columns were not found and will be ignored: {missing_cols}")
+                    ReportService.logger.info(f"Warning: These columns were not found and will be ignored: {missing_cols}")
                 final_df = final_df[[col for col in required_columns if col in final_df.columns]]
 
             # Convert to CSV stream
             csv_stream = BytesIO()
             final_df.to_csv(csv_stream, index=False)
             csv_stream.seek(0)
-
-            print("CSV stream generated successfully.")
+            ReportService.logger.info(f"CSV stream generated successfully.")
             return csv_stream.getvalue()
 
         except Exception as e:
-            print(f"Error generating CSV stream: {e}")
+            ReportService.logger.error(f"Error generating CSV stream: {e}")
             return None
