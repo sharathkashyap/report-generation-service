@@ -2,6 +2,13 @@ import pandas as pd
 from io import BytesIO
 from ..config.db_connection import DBConnection
 import logging 
+import time  # Add this import
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 class DataFetcher:
     logger = logging.getLogger(__name__)
     def __init__(self):# Class-level shared connection
@@ -77,8 +84,11 @@ class DataFetcher:
             DataFetcher.logger.error(f"Error: {e}")
             return None
 
-    def fetch_data_as_dataframe(self, table_name, filters=None,columns=None):
+    def fetch_data_as_dataframe(self, table_name, filters=None, columns=None):
         try:
+            start_time = time.time()
+            DataFetcher.logger.info(f"[{table_name}] - Fetching  records.")
+
             cursor = self.connection.cursor()
             col_clause = ", ".join(columns) if columns else "*"
             query = f"SELECT {col_clause} FROM {table_name}"
@@ -94,10 +104,10 @@ class DataFetcher:
                             conditions.append(f"{col} IN ({placeholders})")
                             values.extend(value)
                         elif op == "gte":
-                            conditions.append(f"CAST({col} AS timestamp) >= %s")
+                            conditions.append(f"{col} >= %s")
                             values.append(value)
                         elif op == "lte":
-                            conditions.append(f"CAST({col} AS timestamp) <= %s")
+                            conditions.append(f"{col} <= %s")
                             values.append(value)
                         # Add other operations if needed
                     else:
@@ -111,7 +121,9 @@ class DataFetcher:
             columns = [desc[0] for desc in cursor.description]
 
             df = pd.DataFrame(rows, columns=columns)
-            DataFetcher.logger.info(f"[{table_name}] - Records fetched: {len(df)}")
+
+            elapsed_time = time.time() - start_time 
+            DataFetcher.logger.info(f"[{table_name}] - Records fetched: {len(df)} | Time taken: {elapsed_time:.2f} seconds")
             return df
         except Exception as e:
             DataFetcher.logger.error(f"Error fetching data from {table_name}: {e}")
