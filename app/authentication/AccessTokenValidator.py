@@ -7,7 +7,6 @@ from cryptography.hazmat.primitives.serialization import load_der_public_key
 from datetime import datetime
 from app.authentication.KeyManager import KeyManager
 from constants import SUNBIRD_SSO_URL, SUNBIRD_SSO_REALM
-from app.authentication.CryptoUtil import CryptoUtil
 logger = logging.getLogger(__name__)
 
 class AccessTokenValidator:

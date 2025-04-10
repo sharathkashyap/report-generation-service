@@ -17,10 +17,12 @@ def create_app():
     
     try:
         db.init_app(app)
+        with app.app_context():
+            # Test the database connection
+            db.session.execute('SELECT 1')
     except Exception as e:
-        app.logger.error(f"Database initialization failed: {e}")
-        raise
-    app = Flask(__name__)
+        logger.error(f"Database initialization failed: {e}")
+        raise RuntimeError("Application startup aborted due to database connection failure.")
 
     if IS_VALIDATION_ENABLED.lower() == 'true' : 
         # Initialize KeyManager
@@ -34,6 +36,10 @@ def create_app():
     try:
         from app.controllers.report_controller import report_controller
         app.register_blueprint(report_controller)
+        
+        # Register health_controller
+        from app.controllers.health_controller import health_controller
+        app.register_blueprint(health_controller)
     except Exception as e:
         app.logger.error(f"Blueprint registration failed: {e}")
         raise

@@ -47,25 +47,33 @@ def get_report(org_id):
         end_date = datetime.combine(end_date.date(), time.max)      # 23:59:59.999999
 
         logger.info(f"Generating report for org_id={org_id} from {start_date} to {end_date}")
-         # Validate date range
-        # if (end_date - start_date).days > 365:
-        #     logger.warning(f"Date range exceeds 1 year: start_date={start_date}, end_date={end_date}")
-        #     return jsonify({'error': 'Date range cannot exceed 1 year'}), 400
+         #Validate date range
+        if (end_date - start_date).days > 365:
+            logger.warning(f"Date range exceeds 1 year: start_date={start_date}, end_date={end_date}")
+            return jsonify({'error': 'Date range cannot exceed 1 year'}), 400
 
-        required_cols = ["user_id", "full_name", "content_id", "total_learning_hours"]
-        csv_data = ReportService.get_total_learning_hours_csv_stream(start_date, end_date, org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENTS )
+        try:
+        
+            csv_data = ReportService.get_total_learning_hours_csv_stream(
+                start_date, end_date, org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENTS
+            )
 
-        if not csv_data:
-            logger.warning(f"No data found for org_id={org_id} within given date range.")
-            return jsonify({'error': 'No data found for the given organization ID.'}), 404
+            if not csv_data:
+                logger.warning(f"No data found for org_id={org_id} within given date range.")
+                return jsonify({'error': 'No data found for the given organization ID.'}), 404
 
-        # Convert CSV data to BytesIO
-        if isinstance(csv_data, str):
-            csv_data = csv_data.encode('utf-8')
+            # Convert CSV data to BytesIO
+            if isinstance(csv_data, str):
+                csv_data = csv_data.encode('utf-8')
 
-        csv_stream = io.BytesIO()
-        csv_stream.write(csv_data)
-        csv_stream.seek(0)
+            csv_stream = io.BytesIO()
+            csv_stream.write(csv_data)
+            csv_stream.seek(0)
+
+        except Exception as e:
+            error_message = str(e)
+            logger.error(f"Error generating CSV stream for org_id={org_id}: {error_message}")
+            return jsonify({'error': 'Failed to generate the report due to an internal error.', 'details': error_message}), 500
 
         time_taken = round(time_module.time() - start_timer, 2)
         logger.info(f"Report generated successfully for org_id={org_id} in {time_taken} seconds")
@@ -79,17 +87,21 @@ def get_report(org_id):
         )
 
     except KeyError as e:
-        logger.error(f"Missing required fields in request: {e}")
-        return jsonify({'error': 'Invalid input. Please provide start_date and end_date.'}), 400
+        error_message = str(e)
+        logger.error(f"Missing required fields in request: {error_message}")
+        return jsonify({'error': 'Invalid input. Please provide start_date and end_date.', 'details': error_message}), 400
 
     except ValueError as e:
-        logger.error(f"Invalid date format in request: {e}")
-        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+        error_message = str(e)
+        logger.error(f"Invalid date format in request: {error_message}")
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.', 'details': error_message}), 400
 
     except FileNotFoundError as e:
-        logger.error(f"File not found during report generation: {e}")
-        return jsonify({'error': 'Report file could not be generated.'}), 500
+        error_message = str(e)
+        logger.error(f"File not found during report generation: {error_message}")
+        return jsonify({'error': 'Report file could not be generated.', 'details': error_message}), 500
 
     except Exception as e:
-        logger.exception(f"Unexpected error occurred: {e}")
-        return jsonify({'error': 'An unexpected error occurred. Please try again later.'}), 500
+        error_message = str(e)
+        logger.exception(f"Unexpected error occurred: {error_message}")
+        return jsonify({'error': 'An unexpected error occurred. Please try again later.', 'details': error_message}), 500

@@ -1,6 +1,6 @@
-from constants import postgres_db_port, postgres_db_user, postgres_db_password, postgres_db_host, postgres_db_name
+from constants import postgres_db_port, postgres_db_user, postgres_db_password, postgres_db_host, postgres_db_name, postgres_db_url
 class Config:
-    #SQLALCHEMY_DATABASE_URI = postgres_db_url
+    SQLALCHEMY_DATABASE_URI = postgres_db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # @staticmethod
