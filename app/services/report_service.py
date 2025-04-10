@@ -5,6 +5,8 @@ import pandas as pd
 from app.models.report_model import ReportData
 from app.services.fetch_data import DataFetcher
 from constants import USER_DETAILS_TABLE, CONTENT_TABLE, USER_ENROLMENTS_TABLE
+import gc
+
 
 logging.basicConfig(
     level=logging.INFO,
@@ -119,6 +121,9 @@ class ReportService:
             merged_df.to_csv(csv_stream, index=False)
             csv_stream.seek(0)
             ReportService.logger.info(f"CSV stream generated with {len(merged_df)} rows.")
+            del user_df, enrollment_df, content_df, merged_df
+            gc.collect()
+            
             return csv_stream.getvalue()
 
         except Exception as e:
