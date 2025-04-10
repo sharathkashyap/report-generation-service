@@ -6,6 +6,11 @@ from app.models.report_model import ReportData
 from app.services.fetch_data import DataFetcher
 from constants import USER_DETAILS_TABLE, CONTENT_TABLE, USER_ENROLMENTS_TABLE
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 class ReportService:
     logger = logging.getLogger(__name__)
 
@@ -54,8 +59,8 @@ class ReportService:
 
             # Fetch filtered enrollment data
             enrollment_filters = {
-                "first_completed_on__gte": start_date,
-                "first_completed_on__lte": end_date
+                "enrolled_on__gte": start_date,
+                "enrolled_on__lte": end_date
             }
 
             enrollment_df = fetcher.fetch_data_as_dataframe(
