@@ -1,8 +1,9 @@
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 from app.services.report_service import ReportService
 from datetime import datetime, time
 import logging
 import io
+import gc
 import time as time_module  # To avoid conflict with datetime.time
 from app.authentication.AccessTokenValidator import AccessTokenValidator
 from constants import X_AUTHENTICATED_USER_TOKEN, IS_VALIDATION_ENABLED, REQUIRED_COLUMNS_FOR_ENROLLMENTS
@@ -63,12 +64,12 @@ def get_report(org_id):
                 return jsonify({'error': 'No data found for the given organization ID.'}), 404
 
             # Convert CSV data to BytesIO
-            if isinstance(csv_data, str):
-                csv_data = csv_data.encode('utf-8')
+            # if isinstance(csv_data, str):
+            #     csv_data = csv_data.encode('utf-8')
 
-            csv_stream = io.BytesIO()
-            csv_stream.write(csv_data)
-            csv_stream.seek(0)
+            # csv_stream = io.BytesIO()
+            # csv_stream.write(csv_data)
+            # csv_stream.seek(0)
 
         except Exception as e:
             error_message = str(e)
@@ -78,15 +79,13 @@ def get_report(org_id):
         time_taken = round(time_module.time() - start_timer, 2)
         logger.info(f"Report generated successfully for org_id={org_id} in {time_taken} seconds")
 
-        response = Response(
-            csv_stream.getvalue(),
+        return Response(
+            stream_with_context(csv_data),
             mimetype="text/csv",
             headers={
                 "Content-Disposition": f'attachment; filename="report_{org_id}.csv"'
             }
         )
-        csv_stream.close()  # Explicitly close the BytesIO stream
-        return response
 
     except KeyError as e:
         error_message = str(e)

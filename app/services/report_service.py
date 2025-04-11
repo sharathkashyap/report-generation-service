@@ -1,5 +1,4 @@
 import logging
-from io import BytesIO
 from cryptography.fernet import Fernet
 import pandas as pd
 from app.models.report_model import ReportData
@@ -116,24 +115,30 @@ class ReportService:
                     ReportService.logger.info(f"Warning: Missing columns skipped: {missing_columns}")
                 merged_df = merged_df[existing_columns]
 
-            # Convert to CSV
-            csv_stream = BytesIO()
-            merged_df.to_csv(csv_stream, index=False)
-            csv_stream.seek(0)
+            def generate_csv_stream(df, cols):
+                try:
+                    yield ','.join(cols) + '\n'
+                    for row in df.itertuples(index=False, name=None):
+                        yield ','.join(map(str, row)) + '\n'
+                finally:
+                    # 🧹 Safe cleanup after generator is fully consumed
+                    df.drop(df.index, inplace=True)
+                    del df
+                    gc.collect()
+                    ReportService.logger.info("Cleaned up DataFrame after streaming.")
             ReportService.logger.info(f"CSV stream generated with {len(merged_df)} rows.")
 
             # Explicit cleanup of DataFrames
             user_df.drop(user_df.index, inplace=True)
             enrollment_df.drop(enrollment_df.index, inplace=True)
             content_df.drop(content_df.index, inplace=True)
-            merged_df.drop(merged_df.index, inplace=True)
 
-            del user_df, enrollment_df, content_df, merged_df
-            user_df = enrollment_df = content_df = merged_df = None
+            del user_df, enrollment_df, content_df
+            user_df = enrollment_df = content_df = None
             gc.collect()
 
             # Return CSV content without closing the stream
-            return csv_stream.getvalue()
+            return generate_csv_stream(merged_df, existing_columns)
 
         except Exception as e:
             ReportService.logger.error(f"Error generating CSV stream: {e}")
