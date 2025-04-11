@@ -122,6 +122,7 @@ class ReportService:
             csv_stream.seek(0)
             ReportService.logger.info(f"CSV stream generated with {len(merged_df)} rows.")
             del user_df, enrollment_df, content_df, merged_df
+            user_df = enrollment_df = content_df = merged_df = None
             gc.collect()
             
             return csv_stream.getvalue()

@@ -78,13 +78,15 @@ def get_report(org_id):
         time_taken = round(time_module.time() - start_timer, 2)
         logger.info(f"Report generated successfully for org_id={org_id} in {time_taken} seconds")
 
-        return Response(
+        response = Response(
             csv_stream.getvalue(),
             mimetype="text/csv",
             headers={
                 "Content-Disposition": f'attachment; filename="report_{org_id}.csv"'
             }
         )
+        csv_stream.close()  # Explicitly close the BytesIO stream
+        return response
 
     except KeyError as e:
         error_message = str(e)
