@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, g
 from flask_sqlalchemy import SQLAlchemy
 import logging
 import os
@@ -43,5 +43,9 @@ def create_app():
     except Exception as e:
         app.logger.error(f"Blueprint registration failed: {e}")
         raise
+
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        db.session.remove()
 
     return app
