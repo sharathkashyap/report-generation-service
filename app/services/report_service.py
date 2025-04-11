@@ -121,10 +121,14 @@ class ReportService:
             merged_df.to_csv(csv_stream, index=False)
             csv_stream.seek(0)
             ReportService.logger.info(f"CSV stream generated with {len(merged_df)} rows.")
+
+            # Explicit cleanup of DataFrames
             del user_df, enrollment_df, content_df, merged_df
             user_df = enrollment_df = content_df = merged_df = None
             gc.collect()
-            
+
+            # Ensure CSV stream is closed
+            csv_stream.close()
             return csv_stream.getvalue()
 
         except Exception as e:
