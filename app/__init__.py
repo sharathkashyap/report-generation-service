@@ -4,6 +4,7 @@ import logging
 import os
 from app.authentication.KeyManager import KeyManager
 from constants import ACCESS_TOKEN_PUBLICKEY_BASEPATH, IS_VALIDATION_ENABLED
+from app.config.db_connection import DBConnection
 
 db = SQLAlchemy()
 
@@ -16,6 +17,8 @@ def create_app():
     app.config.from_object('app.config.db_config.Config')
     
     try:
+        # Initialize the database connection pool
+        DBConnection.initialize_pool()
         db.init_app(app)
         with app.app_context():
             # Test the database connection

@@ -36,6 +36,7 @@ class DataFetcher:
             DataFetcher.logger.error(f"Error: {e}")
             return []
 
+    
     def fetch_data_as_csv_stream(self, table_name, org_id):
         try:
             with self.connection.cursor() as cursor:  # Use context manager for cursor
@@ -49,52 +50,36 @@ class DataFetcher:
                 rows = cursor.fetchall()
                 column_names = [desc[0] for desc in cursor.description]
 
-                # Load data into a pandas DataFrame
-                df = pd.DataFrame(rows, columns=column_names)
-
-                # Filter DataFrame to include only the required columns
-                required_columns = ['user_id', 'mdo_id', 'full_name', 'email']
-                df = df[required_columns]
-
-                # Process user_enrolments in chunks if needed
-                user_ids = df['user_id'].tolist()
-                chunk_size = 1000  # Process in chunks of 1000
-                enrolments_data = []
-                for i in range(0, len(user_ids), chunk_size):
-                    chunk_ids = tuple(user_ids[i:i + chunk_size])
-                    query_user_enrolments = """
-                        SELECT * 
-                        FROM user_enrolments 
-                        WHERE user_id IN %s;
-                    """
-                    cursor.execute(query_user_enrolments, (chunk_ids,))
-                    enrolments_data.extend(cursor.fetchall())
-
-                enrolment_column_names = [desc[0] for desc in cursor.description]
-                enrolments_df = pd.DataFrame(enrolments_data, columns=enrolment_column_names)
-
-                # Filter DataFrame to include only the required columns
-                enrolments_required_columns = ['user_id', 'batch_id', 'content_id', 'content_progress_percentage', 'enrolled_on']  # Replace with actual column names
-                enrolments_df = enrolments_df[enrolments_required_columns]
-
-                # Export enrolments DataFrame to a CSV byte stream
+                # Load data into a pandas DataFrame in chunks
+                chunk_size = 1000
                 csv_stream = BytesIO()
-                enrolments_df.to_csv(csv_stream, index=False)
+                first_chunk = True
+
+                for i in range(0, len(rows), chunk_size):
+                    chunk = rows[i:i + chunk_size]
+                    df = pd.DataFrame(chunk, columns=column_names)
+
+                    # Filter DataFrame to include only the required columns
+                    required_columns = ['user_id', 'mdo_id', 'full_name', 'email']
+                    df = df[required_columns]
+
+                    # Append to CSV stream
+                    df.to_csv(csv_stream, index=False, header=first_chunk, mode='a')
+                    first_chunk = False
+
+                    # Cleanup chunk DataFrame
+                    del df
+                    gc.collect()
+
                 csv_stream.seek(0)  # Reset stream position to the beginning
+                DataFetcher.logger.info("Data fetched and converted to CSV stream successfully.")
 
-                DataFetcher.logger.info(f"Data fetched and converted to CSV stream successfully for user enrolments. Total records: {len(enrolments_df)}")
-
-                # Explicit cleanup of DataFrames
-                del df, enrolments_df
-                df = enrolments_df = None
-                gc.collect()
-
-                # Ensure CSV stream is closed
-                csv_stream.close()
                 return csv_stream
+
         except Exception as e:
             DataFetcher.logger.error(f"Error: {e}")
             return None
+
 
     def fetch_data_as_dataframe(self, table_name, filters=None, columns=None):
         try:
@@ -128,35 +113,36 @@ class DataFetcher:
                     query += " WHERE " + " AND ".join(conditions)
 
                 cursor.execute(query, values)
-                rows = []
                 chunk_size = 1000  # Fetch in chunks of 1000 rows
+                rows = []
+                columns = [desc[0] for desc in cursor.description]
+
                 while True:
                     chunk = cursor.fetchmany(chunk_size)
                     if not chunk:
                         break
                     rows.extend(chunk)
 
-                columns = [desc[0] for desc in cursor.description]
                 df = pd.DataFrame(rows, columns=columns)
 
                 elapsed_time = time.time() - start_time 
                 DataFetcher.logger.info(f"[{table_name}] - Records fetched: {len(df)} | Time taken: {elapsed_time:.2f} seconds")
-                
+
                 # Return the DataFrame and ensure cleanup
-                try:
-                    return df
-                finally:
-                    del df  # Explicitly delete the DataFrame
-                    gc.collect()  # Trigger garbage collection
+                return df
         except Exception as e:
             DataFetcher.logger.error(f"Error fetching data from {table_name}: {e}")
             return pd.DataFrame()
+        finally:
+            # Explicitly delete the DataFrame and trigger garbage collection
+            if 'df' in locals():
+                del df
+            gc.collect()
 
-    def close_connection(connection):
-        if connection:
-            connection.close()
+    def close_connection(self):
+        if self.connection:
+            self.connection.close()
 
     def close(self):
-        # Use the standalone close_connection function to close the shared connection
-        self.close_connection(self.connection)
+        self.close_connection()
 

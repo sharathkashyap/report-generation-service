@@ -54,7 +54,6 @@ def get_report(org_id):
             return jsonify({'error': 'Date range cannot exceed 1 year'}), 400
 
         try:
-        
             csv_data = ReportService.get_total_learning_hours_csv_stream(
                 start_date, end_date, org_id, required_columns=REQUIRED_COLUMNS_FOR_ENROLLMENTS
             )
@@ -62,14 +61,6 @@ def get_report(org_id):
             if not csv_data:
                 logger.warning(f"No data found for org_id={org_id} within given date range.")
                 return jsonify({'error': 'No data found for the given organization ID.'}), 404
-
-            # Convert CSV data to BytesIO
-            # if isinstance(csv_data, str):
-            #     csv_data = csv_data.encode('utf-8')
-
-            # csv_stream = io.BytesIO()
-            # csv_stream.write(csv_data)
-            # csv_stream.seek(0)
 
         except Exception as e:
             error_message = str(e)
@@ -79,13 +70,19 @@ def get_report(org_id):
         time_taken = round(time_module.time() - start_timer, 2)
         logger.info(f"Report generated successfully for org_id={org_id} in {time_taken} seconds")
 
-        return Response(
+        response = Response(
             stream_with_context(csv_data),
             mimetype="text/csv",
             headers={
                 "Content-Disposition": f'attachment; filename="report_{org_id}.csv"'
             }
         )
+
+        # Explicitly trigger garbage collection to free up memory
+        del csv_data
+        gc.collect()
+
+        return response
 
     except KeyError as e:
         error_message = str(e)

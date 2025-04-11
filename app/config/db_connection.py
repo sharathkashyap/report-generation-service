@@ -1,27 +1,35 @@
-import psycopg2
+import psycopg2.pool
 from ..config.db_config import Config
 
 class DBConnection:
-    _connection = None
-    _is_revoked = True  # Flag to track if the connection is revoked
+    _connection_pool = None
 
     @classmethod
-    def get_connection(cls):
-        if cls._connection is None or cls._is_revoked:
+    def initialize_pool(cls, minconn=1, maxconn=10):
+        if cls._connection_pool is None:
             credentials = Config.get_db_credentials()
-            cls._connection = psycopg2.connect(
+            cls._connection_pool = psycopg2.pool.SimpleConnectionPool(
+                minconn,
+                maxconn,
                 user=credentials['user'],
                 password=credentials['password'],
                 host=credentials['host'],
                 port=credentials['port'],
                 database=credentials['database']
             )
-            cls._is_revoked = False
-        return cls._connection
 
     @classmethod
-    def close_connection(cls):
-        if cls._connection:
-            cls._connection.close()
-            cls._connection = None
-            cls._is_revoked = True  # Set the revoked flag when the connection is closed
+    def get_connection(cls):
+        if cls._connection_pool is None:
+            raise Exception("Connection pool is not initialized. Call initialize_pool first.")
+        return cls._connection_pool.getconn()
+
+    @classmethod
+    def release_connection(cls, connection):
+        if cls._connection_pool and connection:
+            cls._connection_pool.putconn(connection)
+
+    @classmethod
+    def close_all_connections(cls):
+        if cls._connection_pool:
+            cls._connection_pool.closeall()

@@ -101,12 +101,6 @@ class ReportService:
                 ReportService.logger.info("Merged dataset is empty.")
                 return None
 
-            # Convert content_duration to numeric
-            #merged_df["content_duration"] = pd.to_numeric(merged_df.get("content_duration", 0), errors="coerce").fillna(0)
-
-            # Optional: calculate total learning hours per user
-            # merged_df["total_learning_hours"] = merged_df.groupby("user_id")["content_duration"].transform("sum")
-
             # Filter columns if specified
             if required_columns:
                 existing_columns = [col for col in required_columns if col in merged_df.columns]
@@ -121,11 +115,12 @@ class ReportService:
                     for row in df.itertuples(index=False, name=None):
                         yield ','.join(map(str, row)) + '\n'
                 finally:
-                    # 🧹 Safe cleanup after generator is fully consumed
+                    # Safe cleanup after generator is fully consumed
                     df.drop(df.index, inplace=True)
                     del df
                     gc.collect()
                     ReportService.logger.info("Cleaned up DataFrame after streaming.")
+
             ReportService.logger.info(f"CSV stream generated with {len(merged_df)} rows.")
 
             # Explicit cleanup of DataFrames
@@ -140,6 +135,9 @@ class ReportService:
             # Return CSV content without closing the stream
             return generate_csv_stream(merged_df, existing_columns)
 
+        except MemoryError as me:
+            ReportService.logger.error("MemoryError encountered. Consider processing data in smaller chunks.")
+            raise
         except Exception as e:
             ReportService.logger.error(f"Error generating CSV stream: {e}")
             return None
