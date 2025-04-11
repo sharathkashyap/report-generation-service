@@ -49,9 +49,12 @@ class ReportService:
                 ReportService.logger.warning("Invalid or empty org_ids provided.")
                 return None
 
+            
+            mdo_id=org_ids[0]
+            print(mdo_id)
             # Fetch filtered enrollment data for all orgs
             enrollment_filters = {
-                "mdo_id__in": org_ids,
+                "mdo_id": mdo_id,
                 "enrolled_on__gte": start_date,
                 "enrolled_on__lte": end_date
             }
