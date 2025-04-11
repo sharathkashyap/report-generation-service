@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 report_controller = Blueprint('report_controller', __name__)
 
-@report_controller.route('/report/orgs', methods=['POST'])
+@report_controller.route('/report/org/<org_id>', methods=['POST'])
 def get_report():
     start_timer = time_module.time()
     try:
