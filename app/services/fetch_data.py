@@ -3,6 +3,7 @@ from io import BytesIO
 from ..config.db_connection import DBConnection
 import logging
 import time
+import gc
 
 logging.basicConfig(
     level=logging.INFO,
@@ -82,6 +83,14 @@ class DataFetcher:
                 csv_stream.seek(0)  # Reset stream position to the beginning
 
                 DataFetcher.logger.info(f"Data fetched and converted to CSV stream successfully for user enrolments. Total records: {len(enrolments_df)}")
+
+                # Explicit cleanup of DataFrames
+                del df, enrolments_df
+                df = enrolments_df = None
+                gc.collect()
+
+                # Ensure CSV stream is closed
+                csv_stream.close()
                 return csv_stream
         except Exception as e:
             DataFetcher.logger.error(f"Error: {e}")
@@ -132,7 +141,13 @@ class DataFetcher:
 
                 elapsed_time = time.time() - start_time 
                 DataFetcher.logger.info(f"[{table_name}] - Records fetched: {len(df)} | Time taken: {elapsed_time:.2f} seconds")
-                return df
+                
+                # Return the DataFrame and ensure cleanup
+                try:
+                    return df
+                finally:
+                    del df  # Explicitly delete the DataFrame
+                    gc.collect()  # Trigger garbage collection
         except Exception as e:
             DataFetcher.logger.error(f"Error fetching data from {table_name}: {e}")
             return pd.DataFrame()
