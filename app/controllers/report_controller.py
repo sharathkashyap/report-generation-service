@@ -4,6 +4,7 @@ from datetime import datetime, time
 import logging
 import io
 import gc
+import ctypes
 import time as time_module  # To avoid conflict with datetime.time
 from app.authentication.AccessTokenValidator import AccessTokenValidator
 from constants import X_AUTHENTICATED_USER_TOKEN, IS_VALIDATION_ENABLED, REQUIRED_COLUMNS_FOR_ENROLLMENTS
@@ -103,3 +104,10 @@ def get_report(org_id):
         error_message = str(e)
         logger.exception(f"Unexpected error occurred: {error_message}")
         return jsonify({'error': 'An unexpected error occurred. Please try again later.', 'details': error_message}), 500
+    finally: 
+        gc.collect()
+        try:
+            logger.info("inside malloc_trim:")
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception as e:
+            logger.exception("malloc_trim failed:", e)

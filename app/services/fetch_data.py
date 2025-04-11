@@ -68,8 +68,8 @@ class DataFetcher:
                     first_chunk = False
 
                     # Cleanup chunk DataFrame
-                    del df
-                    gc.collect()
+                    del df  # Explicitly delete DataFrame
+                    gc.collect()  # Force garbage collection
 
                 csv_stream.seek(0)  # Reset stream position to the beginning
                 DataFetcher.logger.info("Data fetched and converted to CSV stream successfully.")
@@ -79,6 +79,8 @@ class DataFetcher:
         except Exception as e:
             DataFetcher.logger.error(f"Error: {e}")
             return None
+        finally:
+            gc.collect()  # Ensure garbage collection after method execution
 
 
     def fetch_data_as_dataframe(self, table_name, filters=None, columns=None):

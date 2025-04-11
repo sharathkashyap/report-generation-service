@@ -15,29 +15,7 @@ logging.basicConfig(
 class ReportService:
     logger = logging.getLogger(__name__)
 
-    @staticmethod
-    def generate_csv(org_id):
-        try:
-            csv_stream = DataFetcher.fetch_data_as_csv_stream(DataFetcher(), USER_DETAILS_TABLE, org_id)
-            ReportService.logger.info("Data fetched successfully for CSV generation.")
 
-            if not csv_stream:
-                return b""
-
-            return csv_stream.read()
-
-        except Exception as e:
-            ReportService.logger.error(f"Error generating CSV: {e}")
-            return b""
-
-    @staticmethod
-    def encrypt_csv(csv_data: bytes, encryption_key: bytes) -> bytes:
-        try:
-            fernet = Fernet(encryption_key)
-            return fernet.encrypt(csv_data)
-        except Exception as e:
-            logging.error(f"Error encrypting CSV: {e}")
-            raise
 
     @staticmethod
     def get_total_learning_hours_csv_stream(start_date, end_date, mdo_id, required_columns=None):
