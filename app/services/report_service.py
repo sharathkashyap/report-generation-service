@@ -1,9 +1,6 @@
 import logging
-from cryptography.fernet import Fernet
-import pandas as pd
-from app.models.report_model import ReportData
-from app.services.fetch_data import DataFetcher
-from constants import USER_DETAILS_TABLE, CONTENT_TABLE, USER_ENROLMENTS_TABLE
+from app.services.fetch_data_bigQuery import BigQueryService
+from constants import MASTER_ENROLMENTS_TABLE, MASTER_USER_TABLE
 import gc
 
 
@@ -15,77 +12,66 @@ logging.basicConfig(
 class ReportService:
     logger = logging.getLogger(__name__)
 
-
-
     @staticmethod
-    def get_total_learning_hours_csv_stream(start_date, end_date, mdo_id, required_columns=None):
+    def fetch_user_cumulative_report(email=None, phone=None, ehrms_id=None, start_date=None, end_date=None, orgId=None, required_columns=None):
         try:
-            fetcher = DataFetcher()
+            bigquery_service = BigQueryService()
 
-            # Fetch filtered user data
-            user_df = fetcher.fetch_data_as_dataframe(
-                USER_DETAILS_TABLE,
-                {"mdo_id": mdo_id},
-                columns=["user_id", "mdo_id", "full_name"]
-            )
+            # Build filters for user details
+            user_filters = []
+            if email:
+                user_filters.append(f"email = '{email}'")
+            if phone:
+                user_filters.append(f"phone_number = '{phone}'")
+            if ehrms_id:
+                user_filters.append(f"external_system_id = '{ehrms_id}'")
+
+            if not user_filters:
+                ReportService.logger.info("No filters provided for fetching user data.")
+                return None
+
+            # Construct the query for fetching user data
+            user_filter_query = ' AND '.join(user_filters)
+            user_query = f"""
+                SELECT user_id, mdo_id
+                FROM `{MASTER_USER_TABLE}`
+                WHERE {user_filter_query}
+            """
+
+            ReportService.logger.info(f"Executing user query: {user_query}")
+            user_df = bigquery_service.run_query(user_query)
 
             if user_df.empty:
-                ReportService.logger.info("No users found for given mdo_id.")
+                ReportService.logger.info("No users found matching the provided filters.")
                 return None
 
             user_ids = user_df["user_id"].tolist()
             ReportService.logger.info(f"Fetched {len(user_ids)} users.")
 
-            # Fetch filtered enrollment data
-            enrollment_filters = {
-                "enrolled_on__gte": start_date,
-                "enrolled_on__lte": end_date
-            }
+            # Construct the query for fetching enrollment data
+            enrollment_query = f"""
+                SELECT *
+                FROM `{MASTER_ENROLMENTS_TABLE}`
+                WHERE user_id IN ({', '.join([f"'{uid}'" for uid in user_ids])})
+            """
 
-            enrollment_df = fetcher.fetch_data_as_dataframe(
-                USER_ENROLMENTS_TABLE,
-                enrollment_filters,
-                columns=["user_id", "certificate_generated", "content_id", "enrolled_on", "first_completed_on", "last_completed_on"]
-            )
+            if start_date and end_date:
+                enrollment_query += f" AND enrolled_on BETWEEN '{start_date}' AND '{end_date}'"
+
+            ReportService.logger.info(f"Executing enrollment query: {enrollment_query}")
+            enrollment_df = bigquery_service.run_query(enrollment_query)
 
             if enrollment_df.empty:
-                ReportService.logger.info("No enrollment data found for the given date range.")
-                return None
-
-            # Filter enrollment to only matching user_ids
-            enrollment_df = enrollment_df[enrollment_df["user_id"].isin(user_ids)]
-            if enrollment_df.empty:
-                ReportService.logger.info("No enrollments matched the filtered user IDs.")
-                return None
-
-            # Fetch content data (consider filtering by content_id list if needed)
-            content_df = fetcher.fetch_data_as_dataframe(
-                CONTENT_TABLE,
-                columns=["content_id", "content_duration", "content_name"]
-            )
-
-            if content_df.empty:
-                ReportService.logger.info("No content data found.")
-                return None
-
-            # Merge all three datasets
-            merged_df = (
-                user_df
-                .merge(enrollment_df, on="user_id", how="inner")
-                .merge(content_df, on="content_id", how="inner")
-            )
-
-            if merged_df.empty:
-                ReportService.logger.info("Merged dataset is empty.")
+                ReportService.logger.info("No enrollment data found for the given user.")
                 return None
 
             # Filter columns if specified
             if required_columns:
-                existing_columns = [col for col in required_columns if col in merged_df.columns]
+                existing_columns = [col for col in required_columns if col in enrollment_df.columns]
                 missing_columns = list(set(required_columns) - set(existing_columns))
                 if missing_columns:
                     ReportService.logger.info(f"Warning: Missing columns skipped: {missing_columns}")
-                merged_df = merged_df[existing_columns]
+                merged_df = enrollment_df[existing_columns]
 
             def generate_csv_stream(df, cols):
                 try:
@@ -101,21 +87,139 @@ class ReportService:
 
             ReportService.logger.info(f"CSV stream generated with {len(merged_df)} rows.")
 
-            # Explicit cleanup of DataFrames
-            user_df.drop(user_df.index, inplace=True)
-            enrollment_df.drop(enrollment_df.index, inplace=True)
-            content_df.drop(content_df.index, inplace=True)
-
-            del user_df, enrollment_df, content_df
-            user_df = enrollment_df = content_df = None
-            gc.collect()
-
             # Return CSV content without closing the stream
-            return generate_csv_stream(merged_df, existing_columns)
+            return generate_csv_stream(merged_df, merged_df.columns.tolist())
 
         except MemoryError as me:
             ReportService.logger.error("MemoryError encountered. Consider processing data in smaller chunks.")
             raise
         except Exception as e:
-            ReportService.logger.error(f"Error generating CSV stream: {e}")
+            ReportService.logger.error(f"Error generating cumulative report: {e}")
             return None
+
+    @staticmethod
+    def fetch_master_enrolments_data(start_date, end_date, mdo_id,  is_full_report_required, required_columns):
+        try:
+            bigquery_service = BigQueryService()
+
+            # Add date filtering to the query if start_date and end_date are provided
+            date_filter = ""
+            if start_date and end_date:
+                date_filter = f" AND enrolled_on BETWEEN '{start_date}' AND '{end_date}'"
+            if is_full_report_required:
+                mdo_id = ["0136040744089436167049", "013616592545947648401", "01358635373699072089"]
+            else: 
+                mdo_id = [mdo_id]   
+            
+            mdo_id_list = [f"'{mid}'" for mid in mdo_id]  # Quote each ID
+            mdo_id_str = ', '.join(mdo_id_list)  # Join them with commas
+            query = f"""
+                SELECT * 
+                FROM `{MASTER_ENROLMENTS_TABLE}`
+                WHERE mdo_id in ({mdo_id_str}) '{date_filter}'
+            """
+
+            ReportService.logger.info(f"Executing query: {query}")
+
+            # Update to use run_query instead of execute_query
+            result_df = bigquery_service.run_query(query)
+
+            if result_df.empty:
+                ReportService.logger.info("No data found for the given mdo_id and date range.")
+                return None
+
+            ReportService.logger.info(f"Fetched {len(result_df)} rows from master_enrolments_data.")
+
+            # Filter the result DataFrame to include only the required columns
+            if required_columns:
+                existing_columns = [col for col in required_columns if col in result_df.columns]
+                missing_columns = list(set(required_columns) - set(existing_columns))
+                if missing_columns:
+                    ReportService.logger.info(f"Warning: Missing columns skipped: {missing_columns}")
+                result_df = result_df[existing_columns]
+
+            # Generate CSV stream from the result DataFrame
+            def generate_csv_stream(df, cols):
+                try:
+                    yield ','.join(cols) + '\n'
+                    for row in df.itertuples(index=False, name=None):
+                        yield ','.join(map(str, row)) + '\n'
+                finally:
+                    # Safe cleanup after generator is fully consumed
+                    df.drop(df.index, inplace=True)
+                    del df
+                    gc.collect()
+                    ReportService.logger.info("Cleaned up DataFrame after streaming.")
+
+            ReportService.logger.info(f"CSV stream generated with {len(result_df)} rows.")
+
+            # Return CSV content without closing the stream
+            return generate_csv_stream(result_df, result_df.columns.tolist())
+
+        except Exception as e:
+            ReportService.logger.error(f"Error fetching master enrolments data: {e}")
+            return None
+
+    @staticmethod
+    def fetch_master_user_data(user_creation_start_date, user_creation_end_date, mdo_id,  is_full_report_required, required_columns):
+        try:
+            bigquery_service = BigQueryService()
+
+            # Add date filtering to the query if start_date and end_date are provided
+            date_filter = ""
+            if user_creation_start_date and user_creation_end_date:
+                date_filter = f" AND user_registration_date BETWEEN '{user_creation_start_date}' AND '{user_creation_end_date}'"
+            if is_full_report_required:
+                mdo_id = ["0136040744089436167049", "013616592545947648401", "01358635373699072089"]
+            else: 
+                mdo_id = [mdo_id]   
+            
+            mdo_id_list = [f"'{mid}'" for mid in mdo_id]  # Quote each ID
+            mdo_id_str = ', '.join(mdo_id_list)  # Join them with commas
+            query = f"""
+                SELECT * 
+                FROM `{MASTER_USER_TABLE}`
+                WHERE mdo_id in ({mdo_id_str}){date_filter}
+            """
+
+            ReportService.logger.info(f"Executing query: {query}")
+
+            # Update to use run_query instead of execute_query
+            result_df = bigquery_service.run_query(query)
+
+            if result_df.empty:
+                ReportService.logger.info("No data found for user the given mdo_id and date range.")
+                return None
+
+            ReportService.logger.info(f"Fetched {len(result_df)} rows from master_enrolments_data.")
+
+            # Filter the result DataFrame to include only the required columns
+            if required_columns:
+                existing_columns = [col for col in required_columns if col in result_df.columns]
+                missing_columns = list(set(required_columns) - set(existing_columns))
+                if missing_columns:
+                    ReportService.logger.info(f"Warning: Missing columns skipped: {missing_columns}")
+                result_df = result_df[existing_columns]
+
+            # Generate CSV stream from the result DataFrame
+            def generate_csv_stream(df, cols):
+                try:
+                    yield ','.join(cols) + '\n'
+                    for row in df.itertuples(index=False, name=None):
+                        yield ','.join(map(str, row)) + '\n'
+                finally:
+                    # Safe cleanup after generator is fully consumed
+                    df.drop(df.index, inplace=True)
+                    del df
+                    gc.collect()
+                    ReportService.logger.info("Cleaned up DataFrame after streaming.")
+
+            ReportService.logger.info(f"CSV stream generated with {len(result_df)} rows.")
+
+            # Return CSV content without closing the stream
+            return generate_csv_stream(result_df, result_df.columns.tolist())
+
+        except Exception as e:
+            ReportService.logger.error(f"Error fetching master user data: {e}")
+            return None
+

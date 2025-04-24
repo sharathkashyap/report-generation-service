@@ -1,7 +1,10 @@
 Flask==2.2.5
 Flask-SQLAlchemy==2.5.1
 SQLAlchemy==1.4.49
-cryptography
-psycopg2
-pandas
 gunicorn
+google-cloud-bigquery
+google-cloud-storage
+db-dtypes
+google-cloud-bigquery-storage
+pytest
+pytest-cov

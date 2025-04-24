@@ -27,10 +27,19 @@ node() {
                 sh('chmod 777 build.sh')
                 sh("bash -x build.sh ${build_tag} ${env.NODE_NAME} ${docker_server}")
             }
-                        stage('ArchiveArtifacts') {
-                    archiveArtifacts "metadata.json"
-                    currentBuild.description = "${build_tag}"
-                }
+
+        stage('Test') {
+            steps {
+                sh 'pytest --cov=app --cov-report=xml'
+                junit 'junit.xml'
+                publishCoverage adapters: [jacocoAdapter('coverage.xml')]
+            }
+        }
+
+        stage('ArchiveArtifacts') {
+            archiveArtifacts "metadata.json"
+            currentBuild.description = "${build_tag}"
+        }
 
       }
         
