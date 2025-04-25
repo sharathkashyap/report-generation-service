@@ -8,3 +8,4 @@ db-dtypes
 google-cloud-bigquery-storage
 pytest
 pytest-cov
+cryptography

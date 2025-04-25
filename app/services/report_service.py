@@ -1,6 +1,6 @@
 import logging
 from app.services.fetch_data_bigQuery import BigQueryService
-from constants import MASTER_ENROLMENTS_TABLE, MASTER_USER_TABLE
+from constants import MASTER_ENROLMENTS_TABLE, MASTER_USER_TABLE, odisha_child_org_id, odisha_only_enable
 import gc
 
 
@@ -107,16 +107,18 @@ class ReportService:
             if start_date and end_date:
                 date_filter = f" AND enrolled_on BETWEEN '{start_date}' AND '{end_date}'"
             if is_full_report_required:
-                mdo_id = ["0136040744089436167049", "013616592545947648401", "01358635373699072089"]
+                if (odisha_only_enable.lower() == 'true'):
+                    mdo_id_org_list = eval(odisha_child_org_id)
+                    mdo_id_org_list.append(mdo_id)
             else: 
-                mdo_id = [mdo_id]   
+                mdo_id_org_list = [mdo_id]    
             
-            mdo_id_list = [f"'{mid}'" for mid in mdo_id]  # Quote each ID
+            mdo_id_list = [f"'{mid}'" for mid in mdo_id_org_list]  # Quote each ID
             mdo_id_str = ', '.join(mdo_id_list)  # Join them with commas
             query = f"""
                 SELECT * 
                 FROM `{MASTER_ENROLMENTS_TABLE}`
-                WHERE mdo_id in ({mdo_id_str}) '{date_filter}'
+                WHERE mdo_id in ({mdo_id_str}){date_filter}
             """
 
             ReportService.logger.info(f"Executing query: {query}")
@@ -161,7 +163,7 @@ class ReportService:
             return None
 
     @staticmethod
-    def fetch_master_user_data(user_creation_start_date, user_creation_end_date, mdo_id,  is_full_report_required, required_columns):
+    def fetch_master_user_data(mdo_id,  is_full_report_required, required_columns=None, user_creation_start_date=None, user_creation_end_date=None):
         try:
             bigquery_service = BigQueryService()
 
@@ -170,11 +172,13 @@ class ReportService:
             if user_creation_start_date and user_creation_end_date:
                 date_filter = f" AND user_registration_date BETWEEN '{user_creation_start_date}' AND '{user_creation_end_date}'"
             if is_full_report_required:
-                mdo_id = ["0136040744089436167049", "013616592545947648401", "01358635373699072089"]
+                if (odisha_only_enable.lower() == 'true'):
+                    mdo_id_org_list = eval(odisha_child_org_id)
+                    mdo_id_org_list.append(mdo_id)
             else: 
-                mdo_id = [mdo_id]   
+                mdo_id_org_list = [mdo_id]   
             
-            mdo_id_list = [f"'{mid}'" for mid in mdo_id]  # Quote each ID
+            mdo_id_list = [f"'{mid}'" for mid in mdo_id_org_list]  # Quote each ID
             mdo_id_str = ', '.join(mdo_id_list)  # Join them with commas
             query = f"""
                 SELECT * 
@@ -206,14 +210,33 @@ class ReportService:
                 try:
                     yield ','.join(cols) + '\n'
                     for row in df.itertuples(index=False, name=None):
-                        yield ','.join(map(str, row)) + '\n'
+                        row_dict = dict(zip(cols, row))
+                        
+                        # Mask email
+                        if 'email' in row_dict and row_dict['email']:
+                            parts = row_dict['email'].split('@')
+                            if len(parts) == 2:
+                                domain_parts = parts[1].split('.')
+                                masked_domain = '.'.join(['*' * len(part) for part in domain_parts])
+                                row_dict['email'] = f"{parts[0]}@{masked_domain}"
+                            else:
+                                row_dict['email'] = parts[0]
+
+                        # Mask phone number: e.g., ******2245
+                        if 'phone_number' in row_dict and row_dict['phone_number']:
+                            phone = str(row_dict['phone_number'])
+                            if len(phone) >= 4:
+                                row_dict['phone_number'] = '*' * (len(phone) - 4) + phone[-4:]
+                            else:
+                                row_dict['phone_number'] = '*' * len(phone)
+
+                        # Convert back to row and yield
+                        yield ','.join([str(row_dict.get(col, '')) for col in cols]) + '\n'
                 finally:
-                    # Safe cleanup after generator is fully consumed
                     df.drop(df.index, inplace=True)
                     del df
                     gc.collect()
                     ReportService.logger.info("Cleaned up DataFrame after streaming.")
-
             ReportService.logger.info(f"CSV stream generated with {len(result_df)} rows.")
 
             # Return CSV content without closing the stream
