@@ -108,7 +108,7 @@ class ReportService:
                 date_filter = f" AND enrolled_on BETWEEN '{start_date}' AND '{end_date}'"
             if is_full_report_required:
                 # Dynamically fetch orgs using hierarchy
-                mdo_id_org_list = ReportService._get_mdo_id_org_list(mdo_id)
+                mdo_id_org_list = ReportService._get_mdo_id_org_list(bigquery_service, mdo_id)
                 mdo_id_org_list.append(mdo_id)  # Add input mdo_id to the list
 
                 ReportService.logger.info(f"Fetched {len(mdo_id_org_list)} MDO IDs (including input): {mdo_id_org_list}")
