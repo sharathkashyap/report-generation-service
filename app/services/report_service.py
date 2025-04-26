@@ -1,6 +1,6 @@
 import logging
 from app.services.fetch_data_bigQuery import BigQueryService
-from constants import MASTER_ENROLMENTS_TABLE, MASTER_USER_TABLE,MASTER_ORG_HIERARCHY_TABLE, odisha_child_org_id, odisha_only_enable
+from constants import MASTER_ENROLMENTS_TABLE, MASTER_USER_TABLE,MASTER_ORG_HIERARCHY_TABLE, IS_MASKING_ENABLED
 import gc
 
 
@@ -108,48 +108,7 @@ class ReportService:
                 date_filter = f" AND enrolled_on BETWEEN '{start_date}' AND '{end_date}'"
             if is_full_report_required:
                 # Dynamically fetch orgs using hierarchy
-                org_hierarchy_query = f"""
-                    DECLARE input_id STRING;
-                    SET input_id = '{mdo_id}';
-
-                    WITH level_check AS (
-                        SELECT
-                            input_id AS id,
-                            MAX(CASE WHEN ministry_id = input_id THEN 1 ELSE 0 END) AS is_ministry,
-                            MAX(CASE WHEN department_id = input_id THEN 1 ELSE 0 END) AS is_department
-                        FROM `{MASTER_ORG_HIERARCHY_TABLE}`
-                    ),
-
-                    orgs_from_department AS (
-                        SELECT mdo_id AS organisation_id
-                        FROM `{MASTER_ORG_HIERARCHY_TABLE}`
-                        WHERE department_id = input_id
-                    ),
-
-                    orgs_from_ministry AS (
-                        SELECT mdo_id AS organisation_id
-                        FROM `{MASTER_ORG_HIERARCHY_TABLE}`
-                        WHERE ministry_id = input_id
-                    )
-
-                    SELECT organisation_id
-                    FROM orgs_from_department
-                    WHERE EXISTS (
-                        SELECT 1 FROM level_check WHERE is_department = 1 AND is_ministry = 0
-                    )
-
-                    UNION ALL
-
-                    SELECT organisation_id
-                    FROM orgs_from_ministry
-                    WHERE EXISTS (
-                        SELECT 1 FROM level_check WHERE is_ministry = 1
-                    )
-                """
-                ReportService.logger.info(f"Executing org hierarchy query for mdo_id: {mdo_id}")
-                hierarchy_df = bigquery_service.run_query(org_hierarchy_query)
-                
-                mdo_id_org_list = hierarchy_df["organisation_id"].tolist()
+                mdo_id_org_list = ReportService._get_mdo_id_org_list(mdo_id)
                 mdo_id_org_list.append(mdo_id)  # Add input mdo_id to the list
 
                 ReportService.logger.info(f"Fetched {len(mdo_id_org_list)} MDO IDs (including input): {mdo_id_org_list}")
@@ -206,15 +165,13 @@ class ReportService:
     def fetch_master_user_data(mdo_id,  is_full_report_required, required_columns=None, user_creation_start_date=None, user_creation_end_date=None):
         try:
             bigquery_service = BigQueryService()
-
             # Add date filtering to the query if start_date and end_date are provided
             date_filter = ""
             if user_creation_start_date and user_creation_end_date:
                 date_filter = f" AND user_registration_date BETWEEN '{user_creation_start_date}' AND '{user_creation_end_date}'"
             if is_full_report_required:
-                if (odisha_only_enable.lower() == 'true'):
-                    mdo_id_org_list = eval(odisha_child_org_id)
-                    mdo_id_org_list.append(mdo_id)
+                mdo_id_org_list = ReportService._get_mdo_id_org_list(bigquery_service, mdo_id)
+                mdo_id_org_list.append(mdo_id) 
             else: 
                 mdo_id_org_list = [mdo_id]   
             
@@ -251,24 +208,24 @@ class ReportService:
                     yield ','.join(cols) + '\n'
                     for row in df.itertuples(index=False, name=None):
                         row_dict = dict(zip(cols, row))
-                        
+                        if IS_MASKING_ENABLED.lower() == 'true':
                         # Mask email
-                        if 'email' in row_dict and row_dict['email']:
-                            parts = row_dict['email'].split('@')
-                            if len(parts) == 2:
-                                domain_parts = parts[1].split('.')
-                                masked_domain = '.'.join(['*' * len(part) for part in domain_parts])
-                                row_dict['email'] = f"{parts[0]}@{masked_domain}"
-                            else:
-                                row_dict['email'] = parts[0]
+                            if 'email' in row_dict and row_dict['email']:
+                                parts = row_dict['email'].split('@')
+                                if len(parts) == 2:
+                                    domain_parts = parts[1].split('.')
+                                    masked_domain = '.'.join(['*' * len(part) for part in domain_parts])
+                                    row_dict['email'] = f"{parts[0]}@{masked_domain}"
+                                else:
+                                    row_dict['email'] = parts[0]
 
-                        # Mask phone number: e.g., ******2245
-                        if 'phone_number' in row_dict and row_dict['phone_number']:
-                            phone = str(row_dict['phone_number'])
-                            if len(phone) >= 4:
-                                row_dict['phone_number'] = '*' * (len(phone) - 4) + phone[-4:]
-                            else:
-                                row_dict['phone_number'] = '*' * len(phone)
+                            # Mask phone number: e.g., ******2245
+                            if 'phone_number' in row_dict and row_dict['phone_number']:
+                                phone = str(row_dict['phone_number'])
+                                if len(phone) >= 4:
+                                    row_dict['phone_number'] = '*' * (len(phone) - 4) + phone[-4:]
+                                else:
+                                    row_dict['phone_number'] = '*' * len(phone)
 
                         # Convert back to row and yield
                         yield ','.join([str(row_dict.get(col, '')) for col in cols]) + '\n'
@@ -286,3 +243,44 @@ class ReportService:
             ReportService.logger.error(f"Error fetching master user data: {e}")
             return None
 
+
+    def _get_mdo_id_org_list(bigquery_service: BigQueryService, mdo_id: str) -> list:
+        org_hierarchy_query = f"""
+            DECLARE input_id STRING;
+            SET input_id = '{mdo_id}';
+
+            WITH level_check AS (
+                SELECT
+                    input_id AS id,
+                    MAX(CASE WHEN ministry_id = input_id THEN 1 ELSE 0 END) AS is_ministry,
+                    MAX(CASE WHEN department_id = input_id THEN 1 ELSE 0 END) AS is_department
+                FROM `{MASTER_ORG_HIERARCHY_TABLE}`
+            ),
+            orgs_from_department AS (
+                SELECT mdo_id AS organisation_id
+                FROM `{MASTER_ORG_HIERARCHY_TABLE}`
+                WHERE department_id = input_id
+            ),
+            orgs_from_ministry AS (
+                SELECT mdo_id AS organisation_id
+                FROM `{MASTER_ORG_HIERARCHY_TABLE}`
+                WHERE ministry_id = input_id
+            )
+            SELECT organisation_id
+            FROM orgs_from_department
+            WHERE EXISTS (
+                SELECT 1 FROM level_check WHERE is_department = 1 AND is_ministry = 0
+            )
+            UNION ALL
+            SELECT organisation_id
+            FROM orgs_from_ministry
+            WHERE EXISTS (
+                SELECT 1 FROM level_check WHERE is_ministry = 1
+            )
+        """
+
+        ReportService.logger.info(f"Executing org hierarchy query for mdo_id: {mdo_id}")
+        hierarchy_df = bigquery_service.run_query(org_hierarchy_query)
+        mdo_id_org_list = hierarchy_df["organisation_id"].tolist()
+
+        return mdo_id_org_list
