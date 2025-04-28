@@ -214,13 +214,13 @@ def get_org_user_report(orgId):
         if not data:
             raise KeyError("Request body is missing.")
 
-        start_date = data.get('user_creation_start_date')
-        end_date = data.get('user_creation_end_date')
+        user_creation_start_date = data.get('user_creation_start_date')
+        user_creation_end_date = data.get('user_creation_end_date')
 
         # Validate date range if provided
-        if start_date and end_date:
-            user_creation_start_date = datetime.strptime(start_date, '%Y-%m-%d')
-            user_creation_end_date = datetime.strptime(end_date, '%Y-%m-%d')
+        if user_creation_start_date and user_creation_end_date:
+            user_creation_start_date = datetime.strptime(user_creation_start_date, '%Y-%m-%d')
+            user_creation_end_date = datetime.strptime(user_creation_end_date, '%Y-%m-%d')
             user_creation_start_date = datetime.combine(user_creation_start_date.date(), time.min)  # 00:00:00
             user_creation_end_date = datetime.combine(user_creation_end_date.date(), time.max)      # 23:59:59.999999
 
@@ -233,7 +233,7 @@ def get_org_user_report(orgId):
         
         try:
             csv_data = ReportService.fetch_master_user_data(
-                user_creation_start_date, user_creation_end_date, orgId, is_full_report_required, required_columns=required_columns
+                orgId, is_full_report_required, required_columns=required_columns, user_creation_start_date=user_creation_start_date, user_creation_end_date=user_creation_end_date
             )
 
             if not csv_data:

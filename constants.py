@@ -19,3 +19,4 @@ MASTER_ORG_HIERARCHY_TABLE = f"{GCP_PROJECT}.{GCP_DB_NAME}.{GCP_ORG_HIERARCHY_TA
 GCP_ORG_USER_TABLE_NAME = os.environ.get('GCP_ORG_USER_TABLE_NAME', 'master_user_details')
 MASTER_USER_TABLE = f"{GCP_PROJECT}.{GCP_DB_NAME}.{GCP_ORG_USER_TABLE_NAME}"
 GCP_CREDENTIALS_PATH = os.environ.get('GCP_CREDENTIALS_PATH', '/home/sahilchaudhary/Downloads/prj-kb-nprd-uat-gcp-1006-c691f3c2615b.json')
+IS_MASKING_ENABLED = os.environ.get('IS_MASKING_ENABLED', 'False')
